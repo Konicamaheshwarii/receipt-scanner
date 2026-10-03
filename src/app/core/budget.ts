@@ -24,14 +24,16 @@ export function monthProgress(month: string, today: string): number {
 }
 
 /**
- * Compares spend with a budget. "warn" means either 85% is used or the current
- * pace will overshoot by month end; "over" means it already has.
+ * Compares spend with a budget. "warn" means either 85% is used or (from a quarter
+ * into the month) the current pace will overshoot by month end; "over" means it already has.
  */
 export function budgetStatus(spent: number, budget: number | undefined, progress: number): BudgetStatus {
   const b = budget && budget > 0 ? budget : 0;
   const projected = round2(progress > 0 && progress < 1 ? spent / progress : spent);
   const ratio = b ? spent / b : 0;
-  const state: BudgetState = !b ? 'none' : spent > b ? 'over' : ratio >= 0.85 || projected > b ? 'warn' : 'ok';
+  // Pace is too noisy in the first week, so it only counts once a quarter of the month has passed.
+  const paceRisk = progress >= 0.25 && projected > b;
+  const state: BudgetState = !b ? 'none' : spent > b ? 'over' : ratio >= 0.85 || paceRisk ? 'warn' : 'ok';
   return { spent: round2(spent), budget: b, remaining: round2(b - spent), ratio, projected, state };
 }
 

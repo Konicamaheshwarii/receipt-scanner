@@ -202,7 +202,8 @@ textarea { resize: vertical; min-height: 4rem; }
 
 /* Shared chart pieces (the chart components are hand-written SVG) */
 .chart { position: relative; }
-.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart svg { display: block; overflow: visible; }
+.donut svg { width: 100%; height: auto; }
 .chart .mark { outline: none; }
 .chart .mark:focus-visible { stroke: var(--text); stroke-width: 2px; }
 .chart-tip {

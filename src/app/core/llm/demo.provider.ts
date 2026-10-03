@@ -17,7 +17,7 @@ export function demoInsights(i: InsightsInput): string {
     const pct = Math.round((i.total / i.budget) * 100);
     out.push(i.total > i.budget
       ? `- You have spent ${money(i.total)}, which is ${money(i.total - i.budget)} over your ${money(i.budget)} budget.`
-      : i.progress < 1 && projected > i.budget
+      : i.progress >= 0.25 && i.progress < 1 && projected > i.budget
         ? `- ${pct}% of your budget is used with ${Math.round((1 - i.progress) * 100)}% of the month left. At this pace you would end near ${money(projected)}, above the ${money(i.budget)} budget.`
         : `- ${money(i.total)} spent, ${pct}% of your ${money(i.budget)} budget. You are on track.`);
   } else {

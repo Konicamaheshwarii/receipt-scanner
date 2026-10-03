@@ -1,0 +1,75 @@
+<div class="page-head">
+  <h1>Expenses</h1>
+  <span class="spacer"></span>
+  <button class="btn" type="button" (click)="exportCsv()" [disabled]="!results().length">Export CSV</button>
+  <a class="btn primary" routerLink="/scan">+ Add</a>
+</div>
+
+<div class="filters card" role="search">
+  <label class="search">
+    <span class="sr-only">Search</span>
+    <input type="search" placeholder="Search merchant, item or note" [value]="query().search"
+           (input)="set({ search: $any($event.target).value })" />
+  </label>
+  <label>
+    <span class="sr-only">Category</span>
+    <select (change)="setCategory($any($event.target).value)" aria-label="Filter by category">
+      <option value="" [selected]="!query().category">All categories</option>
+      @for (c of categories; track c) { <option [value]="c" [selected]="query().category === c">{{ labels[c] }}</option> }
+    </select>
+  </label>
+  <label>
+    <span class="sr-only">Month</span>
+    <select (change)="set({ month: $any($event.target).value })" aria-label="Filter by month">
+      <option value="" [selected]="!query().month">All months</option>
+      @for (m of months(); track m) { <option [value]="m" [selected]="query().month === m">{{ monthLabel(m) }}</option> }
+    </select>
+  </label>
+  <label>
+    <span class="sr-only">Sort</span>
+    <select (change)="set({ sort: $any($event.target).value })" aria-label="Sort expenses">
+      @for (s of sorts; track s.id) { <option [value]="s.id" [selected]="query().sort === s.id">{{ s.label }}</option> }
+    </select>
+  </label>
+</div>
+
+<p class="summary muted" aria-live="polite">
+  {{ results().length }} {{ results().length === 1 ? 'expense' : 'expenses' }}
+  @for (s of sums(); track s.currency; let first = $first) {
+    {{ first ? '·' : '+' }} <strong class="num">{{ s.total | money: s.currency }}</strong>
+  }
+  @if (filtered()) { <button class="btn sm ghost" type="button" (click)="reset()">Clear filters</button> }
+</p>
+
+@if (results().length) {
+  <ul class="list card" aria-label="Expenses">
+    @for (e of results(); track e.id) {
+      <li>
+        <a class="item" [routerLink]="['/edit', e.id]" [attr.aria-label]="e.merchant + ', ' + (e.total | money: e.currency) + ', ' + formatDate(e.date) + '. Edit'">
+          @if (e.thumbnail) {
+            <img class="thumb" [src]="e.thumbnail" alt="" width="40" height="52" />
+          } @else {
+            <span class="thumb placeholder" [style.background]="'var(--c-' + e.category + ')'" aria-hidden="true">{{ e.merchant.charAt(0) }}</span>
+          }
+          <span class="main">
+            <strong>{{ e.merchant }}</strong>
+            <span class="muted small">{{ formatDate(e.date) }} · {{ paymentLabels[e.payment] }}@if (e.items.length) { · {{ e.items.length }} {{ e.items.length === 1 ? 'item' : 'items' }} }</span>
+          </span>
+          <span class="cat small"><span class="swatch" [style.background]="'var(--c-' + e.category + ')'"></span>{{ labels[e.category] }}</span>
+          <strong class="amount num">{{ e.total | money: e.currency }}</strong>
+        </a>
+        <button class="btn sm ghost danger del" type="button" (click)="store.remove(e.id)" [attr.aria-label]="'Delete ' + e.merchant + ' expense'">✕</button>
+      </li>
+    }
+  </ul>
+} @else {
+  <div class="card empty">
+    @if (store.expenses().length) {
+      <p>No expenses match these filters.</p>
+      <button class="btn" type="button" (click)="reset()">Clear filters</button>
+    } @else {
+      <p>No expenses yet. Scan a receipt, or load the demo data from Settings.</p>
+      <a class="btn primary" routerLink="/scan">Scan a receipt</a>
+    }
+  </div>
+}

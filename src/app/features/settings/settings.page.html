@@ -1,0 +1,111 @@
+<div class="page-head"><h1>Settings</h1></div>
+
+<section class="card stack">
+  <h2>AI provider</h2>
+  <div class="providers" role="radiogroup" aria-label="AI provider">
+    @for (p of providers; track p.id) {
+      <button type="button" role="radio" class="provider" [class.on]="store.provider() === p.id"
+              [attr.aria-checked]="store.provider() === p.id" (click)="choose(p.id)">
+        <strong>{{ p.label }}</strong>
+        <span class="muted">
+          @switch (p.id) {
+            @case ('demo') { Sample receipts with pre-extracted data and rule-based insights. Works offline. }
+            @case ('gemini') { Free tier. Reads receipt photos with Gemini vision. }
+            @case ('groq') { Free tier. Fast Llama 4 vision model. }
+          }
+        </span>
+      </button>
+    }
+  </div>
+
+  @if (real(); as id) {
+    <label>
+      API key
+      <input type="password" autocomplete="off" spellcheck="false" [value]="store.settings().apiKeys[id] ?? ''"
+             (change)="setKey($any($event.target).value)" placeholder="Paste your key" />
+    </label>
+    <p class="muted small fine">
+      Get a free key at <a [href]="current().keyUrl" target="_blank" rel="noopener">{{ current().keyUrl }}</a>.
+      It is stored in this browser only and sent straight to {{ current().label }} with each scan. There is no backend.
+    </p>
+    <label>
+      Model
+      <input type="text" [value]="store.settings().models[id]" (change)="setModel($any($event.target).value)" />
+    </label>
+    <div class="row">
+      <button class="btn" type="button" (click)="testConnection()" [disabled]="store.needsKey() || test().state === 'running'">
+        @if (test().state === 'running') { <span class="spinner" aria-hidden="true"></span> } Test connection
+      </button>
+      <button class="btn danger" type="button" (click)="clearKey()" [disabled]="store.needsKey()">Remove key</button>
+      @if (test().message) {
+        <span [class]="test().state === 'ok' ? 'state-ok' : 'state-over'" role="status">{{ test().message }}</span>
+      }
+    </div>
+  }
+</section>
+
+<section class="card stack">
+  <h2>Money and dates</h2>
+  <div class="two">
+    <label>Home currency
+      <select (change)="store.update({ currency: $any($event.target).value })">
+        @for (c of currencies; track c) { <option [value]="c" [selected]="store.currency() === c">{{ c }}</option> }
+      </select>
+    </label>
+    <label>Ambiguous dates like 03/04/2026
+      <select (change)="store.update({ dateOrder: $any($event.target).value })">
+        <option value="mdy" [selected]="store.settings().dateOrder === 'mdy'">Month first (US)</option>
+        <option value="dmy" [selected]="store.settings().dateOrder === 'dmy'">Day first (UK, EU, India)</option>
+      </select>
+    </label>
+  </div>
+  <p class="muted small fine">The dashboard and budgets use the home currency. Expenses in other currencies are kept and listed, but not converted.</p>
+</section>
+
+<section class="card stack" id="budgets">
+  <div class="row"><h2>Monthly budgets</h2><span class="spacer"></span><span class="muted">Total <strong class="num">{{ total() | money: store.currency() }}</strong></span></div>
+  <div class="budgets">
+    @for (c of categories; track c) {
+      <label>
+        <span class="lbl"><span class="swatch" [style.background]="'var(--c-' + c + ')'"></span>{{ labels[c] }}</span>
+        <input type="text" inputmode="decimal" class="num" placeholder="No budget"
+               [value]="expenses.budgets()[c] ?? ''" (change)="setBudget(c, $any($event.target).value)" />
+      </label>
+    }
+  </div>
+  <p class="muted small fine">Leave a field empty for no budget. Changes save automatically.</p>
+</section>
+
+<section class="card stack">
+  <h2>Your data</h2>
+  <p class="muted small fine">Everything is stored in this browser (localStorage), with a small thumbnail per receipt; full photos are never kept.
+    {{ expenses.expenses().length }} expenses saved.</p>
+  <div class="row">
+    <button class="btn" type="button" (click)="exportCsv()" [disabled]="!expenses.expenses().length">Export CSV</button>
+    <button class="btn" type="button" (click)="backup()">Download backup (JSON)</button>
+    <label class="btn file">Restore backup
+      <input type="file" accept="application/json,.json" (change)="restore(restoreInput)" #restoreInput />
+    </label>
+  </div>
+  <div class="row">
+    <button class="btn" type="button" (click)="loadDemo()">Load demo history</button>
+    <button class="btn danger" type="button" (click)="clearAll()" (blur)="confirmClear.set(false)">
+      {{ confirmClear() ? 'Click again to delete everything' : 'Delete all data' }}
+    </button>
+  </div>
+  @if (dataMessage(); as m) {
+    <p [class]="m.ok ? 'alert ok' : 'alert'" role="status">{{ m.text }}</p>
+  }
+</section>
+
+<section class="card stack">
+  <h2>Appearance</h2>
+  <div class="row" role="radiogroup" aria-label="Theme">
+    @for (t of themes; track t) {
+      <button type="button" role="radio" class="btn" [class.primary]="store.settings().theme === t"
+              [attr.aria-checked]="store.settings().theme === t" (click)="store.update({ theme: t })">
+        {{ t === 'system' ? 'Match system' : t === 'light' ? 'Light' : 'Dark' }}
+      </button>
+    }
+  </div>
+</section>

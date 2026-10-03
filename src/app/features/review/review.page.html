@@ -1,0 +1,123 @@
+@if (draft(); as d) {
+  <div class="page-head">
+    <h1>{{ review()?.editingId ? 'Edit expense' : 'Review receipt' }}</h1>
+    <span class="spacer"></span>
+    @if (review()?.source === 'scan') { <span class="chip">Extracted by AI · check before saving</span> }
+  </div>
+
+  <div class="layout">
+    <aside class="preview card" [class.empty]="!review()?.image">
+      @if (review()?.image; as img) {
+        <button type="button" class="zoom" (click)="zoom.set(!zoom())" [attr.aria-pressed]="zoom()"
+                [attr.aria-label]="zoom() ? 'Fit receipt image' : 'Enlarge receipt image'">
+          <img [src]="img" alt="Receipt photo" [class.zoomed]="zoom()" />
+        </button>
+        @if (review()?.editingId) { <p class="muted small">Only a thumbnail is stored, to save space.</p> }
+      } @else {
+        <p class="muted">No image. Manual entry.</p>
+      }
+    </aside>
+
+    <form class="card stack form" (submit)="$event.preventDefault(); save()" novalidate>
+      @if (review()?.warnings?.length) {
+        <div class="alert warn" role="status">
+          <strong>Please check:</strong>
+          <ul>@for (w of review()!.warnings; track w) { <li>{{ w }}</li> }</ul>
+        </div>
+      }
+
+      <div class="grid">
+        <label class="wide">Merchant
+          <input type="text" [value]="d.merchant" (input)="patch({ merchant: $any($event.target).value })" placeholder="Store name" maxlength="80" />
+        </label>
+        <label>Date
+          <input type="date" [value]="d.date" (change)="patch({ date: $any($event.target).value })"
+                 [attr.aria-invalid]="submitted() && !!errors().date" aria-describedby="date-err" />
+          @if (submitted() && errors().date) { <span id="date-err" class="err">{{ errors().date }}</span> }
+        </label>
+        <label>Category
+          <select [value]="d.category" (change)="patch({ category: $any($event.target).value })">
+            @for (c of categories; track c) { <option [value]="c" [selected]="c === d.category">{{ categoryLabels[c] }}</option> }
+          </select>
+        </label>
+        <label>Payment
+          <select (change)="patch({ payment: $any($event.target).value })">
+            @for (p of payments; track p) { <option [value]="p" [selected]="p === d.payment">{{ paymentLabels[p] }}</option> }
+          </select>
+        </label>
+        <label>Currency
+          <select (change)="patch({ currency: $any($event.target).value })">
+            @for (c of currencies(); track c) { <option [value]="c" [selected]="c === d.currency">{{ c }}</option> }
+          </select>
+        </label>
+      </div>
+
+      <fieldset class="items">
+        <legend>Items <span class="muted small">({{ d.items.length }})</span></legend>
+        @if (d.items.length) {
+          <table>
+            <thead><tr><th scope="col">Item</th><th scope="col" class="qty">Qty</th><th scope="col" class="price">Line total</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+            <tbody>
+              @for (it of d.items; track $index; let i = $index) {
+                <tr>
+                  <td><input type="text" [value]="it.name" (input)="setItem(i, { name: $any($event.target).value })" [attr.aria-label]="'Item ' + (i + 1) + ' name'" placeholder="Item" /></td>
+                  <td class="qty"><input type="text" inputmode="decimal" [value]="it.qty" (change)="setItemQty(i, $any($event.target).value)" [attr.aria-label]="'Item ' + (i + 1) + ' quantity'" /></td>
+                  <td class="price"><input type="text" inputmode="decimal" class="num" [value]="value(it.price)" (change)="setItemPrice(i, $any($event.target).value)" [attr.aria-label]="'Item ' + (i + 1) + ' line total'" /></td>
+                  <td><button type="button" class="btn sm ghost danger" (click)="removeItem(i)" [attr.aria-label]="'Remove ' + (it.name || 'item ' + (i + 1))">✕</button></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="muted small">No line items. That is fine for a quick entry: just fill in the total.</p>
+        }
+        <button type="button" class="btn sm" (click)="addItem()">+ Add item</button>
+      </fieldset>
+
+      <div class="grid money">
+        <label>Subtotal
+          <input type="text" inputmode="decimal" class="num" [value]="value(d.subtotal)" (change)="setMoney('subtotal', $any($event.target).value)" placeholder="—" />
+        </label>
+        <label>Tax
+          <input type="text" inputmode="decimal" class="num" [value]="value(d.tax)" (change)="setMoney('tax', $any($event.target).value)" placeholder="—" />
+        </label>
+        <label>Tip
+          <input type="text" inputmode="decimal" class="num" [value]="value(d.tip)" (change)="setMoney('tip', $any($event.target).value)" placeholder="—" />
+        </label>
+        <label>Total
+          <input type="text" inputmode="decimal" class="num total" [value]="value(d.total)" (change)="setMoney('total', $any($event.target).value)"
+                 [attr.aria-invalid]="submitted() && !!errors().total" aria-describedby="total-err" />
+          @if (submitted() && errors().total) { <span id="total-err" class="err">{{ errors().total }}</span> }
+        </label>
+      </div>
+
+      @if (totals(); as t) {
+        @if (!t.ok) {
+          <div class="alert warn totals" role="alert">
+            <span><strong>Totals don't match.</strong> {{ t.message }}</span>
+            @if (suggestedTotal() !== null) {
+              <button type="button" class="btn sm" (click)="useSuggested()">Set total to {{ suggestedTotal() | money: d.currency }}</button>
+            }
+          </div>
+        } @else if (d.items.length) {
+          <p class="ok-line small" role="status">✓ Items add up: {{ t.itemsSum | money: d.currency }} in items, {{ d.total | money: d.currency }} total.</p>
+        }
+      }
+
+      <label>Notes
+        <textarea rows="2" [value]="d.notes" (input)="patch({ notes: $any($event.target).value })" maxlength="500" placeholder="Optional"></textarea>
+      </label>
+
+      <div class="row actions">
+        <button class="btn primary" type="submit">{{ review()?.editingId ? 'Save changes' : 'Save expense' }}</button>
+        <button class="btn" type="button" (click)="discard()">Cancel</button>
+        <span class="spacer"></span>
+        @if (review()?.editingId) {
+          <button class="btn danger" type="button" (click)="remove()">Delete</button>
+        } @else {
+          <a class="btn ghost" routerLink="/scan">Scan another</a>
+        }
+      </div>
+    </form>
+  </div>
+}

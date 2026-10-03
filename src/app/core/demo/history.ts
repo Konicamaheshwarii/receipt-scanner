@@ -57,9 +57,13 @@ const OTHER = [
 
 interface Recurring { day: number; merchant: string; category: Category; item: string; amount: () => number; payment: PaymentMethod }
 
-/** Realistic-looking history: recurring bills plus random everyday spending. */
+/**
+ * Realistic-looking history: recurring bills, a weekly grocery shop, fuel every ten days
+ * and random everyday spending. Each day has its own seeded generator, so past days look
+ * the same on every visit no matter when the demo is opened.
+ */
 export function generateHistory(today: Date, seed = 2026): Expense[] {
-  const rand = mulberry32(seed + today.getFullYear() * 400 + today.getMonth() * 31 + today.getDate());
+  let rand = mulberry32(seed);
   const between = (min: number, max: number) => min + rand() * (max - min);
   const chance = (p: number) => rand() < p;
   const pickOne = <X>(list: X[]) => list[Math.floor(rand() * list.length)];
@@ -98,8 +102,8 @@ export function generateHistory(today: Date, seed = 2026): Expense[] {
     });
   };
 
-  const fromTemplate = (date: Date, t: Template, tipRate = 0) => {
-    const count = Math.round(between(t.pick[0], t.pick[1]));
+  const fromTemplate = (date: Date, t: Template, tipRate = 0, pick = t.pick) => {
+    const count = Math.round(between(pick[0], pick[1]));
     const pool = [...t.items];
     const items: ReceiptItem[] = [];
     for (let i = 0; i < count && pool.length; i++) {
@@ -113,18 +117,21 @@ export function generateHistory(today: Date, seed = 2026): Expense[] {
 
   for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
     const date = new Date(d);
-    const weekend = date.getDay() === 0 || date.getDay() === 6;
+    rand = mulberry32(seed + date.getFullYear() * 400 + date.getMonth() * 31 + date.getDate());
+    const dow = date.getDay();
+    const weekend = dow === 0 || dow === 6;
     for (const r of recurring) {
       if (date.getDate() === r.day) {
         add(date, T(r.merchant, r.category, r.payment, 0, [1, 1], []), [{ name: r.item, qty: 1, price: r.amount() }]);
       }
     }
-    if (chance(weekend ? 0.45 : 0.18)) fromTemplate(date, pickOne(GROCERS));
-    if (chance(0.3)) fromTemplate(date, DINING[0]);
-    if (chance(weekend ? 0.4 : 0.1)) fromTemplate(date, pickOne(DINING.slice(1)), 0.18);
-    if (chance(0.09)) fromTemplate(date, TRANSPORT[0]);
-    if (chance(0.08)) fromTemplate(date, pickOne(TRANSPORT.slice(1)));
-    if (chance(weekend ? 0.15 : 0.05)) fromTemplate(date, pickOne(SHOPPING));
+    if (dow === 6) fromTemplate(date, pickOne(GROCERS.slice(0, 2)), 0, [6, 9]); // weekly shop
+    if (dow === 3 && chance(0.6)) fromTemplate(date, GROCERS[2]); // midweek top-up
+    if (date.getDate() % 10 === 8) fromTemplate(date, TRANSPORT[0]); // fuel
+    if (!weekend && chance(0.35)) fromTemplate(date, DINING[0]);
+    if ((dow === 5 || dow === 6) && chance(0.55)) fromTemplate(date, pickOne(DINING.slice(1)), 0.18);
+    if (chance(0.06)) fromTemplate(date, pickOne(TRANSPORT.slice(1)));
+    if (chance(weekend ? 0.18 : 0.04)) fromTemplate(date, pickOne(SHOPPING));
     if (chance(0.04)) fromTemplate(date, HEALTH[0]);
     if (chance(0.03)) fromTemplate(date, pickOne(OTHER));
   }
@@ -139,5 +146,5 @@ export function generateHistory(today: Date, seed = 2026): Expense[] {
 }
 
 export const DEMO_BUDGETS: Budgets = {
-  groceries: 420, dining: 260, transport: 220, shopping: 180, bills: 260, health: 110, travel: 250, other: 60,
+  groceries: 280, dining: 300, transport: 240, shopping: 150, bills: 240, health: 80, travel: 300, other: 40,
 };

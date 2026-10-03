@@ -31,6 +31,11 @@ export function monthTotal(expenses: Expense[], month: string): number {
   return sum(inMonth(expenses, month));
 }
 
+/** Spend in `month` up to and including day `day` (for like-for-like month comparisons). */
+export function monthTotalUntil(expenses: Expense[], month: string, day: number): number {
+  return sum(inMonth(expenses, month).filter((e) => Number(e.date.slice(8, 10)) <= day));
+}
+
 export interface CategoryTotal { category: Category; total: number; count: number; share: number }
 
 /** Spend per category, largest first, empty categories left out. Shares add up to 1. */

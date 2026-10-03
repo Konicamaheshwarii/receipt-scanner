@@ -1,0 +1,182 @@
+<div class="page-head">
+  <h1>Dashboard</h1>
+  <span class="spacer"></span>
+  <div class="month-nav" role="group" aria-label="Month">
+    <button class="btn sm" type="button" (click)="go(-1)" aria-label="Previous month">‹</button>
+    <strong class="month" aria-live="polite">{{ monthName() }}</strong>
+    <button class="btn sm" type="button" (click)="go(1)" [disabled]="month() >= currentMonth" aria-label="Next month">›</button>
+  </div>
+</div>
+
+@if (!hasAny()) {
+  <section class="card empty">
+    <h2>No expenses yet</h2>
+    <p class="muted">Scan your first receipt, or load three months of sample data from Settings.</p>
+    <div class="row"><a class="btn primary" routerLink="/scan">Scan a receipt</a><a class="btn" routerLink="/settings">Settings</a></div>
+  </section>
+} @else {
+  <section class="kpis">
+    <div class="card hero">
+      <span class="muted">Spent in {{ monthName() }}</span>
+      <strong class="hero-value">{{ spent() | money: currency() }}</strong>
+      @if (status().budget) {
+        <div class="meter" [class]="'meter ' + status().state" role="meter" aria-label="Monthly budget used"
+             [attr.aria-valuenow]="spent()" aria-valuemin="0" [attr.aria-valuemax]="status().budget"
+             [attr.aria-valuetext]="(status().ratio * 100).toFixed(0) + '% of budget'">
+          <span [style.width.%]="status().ratio > 1 ? 100 : status().ratio * 100"></span>
+        </div>
+        <span class="small">
+          @switch (status().state) {
+            @case ('over') { <span class="state-over">▲ Over budget</span> by {{ -status().remaining | money: currency() }} }
+            @case ('warn') { <span class="state-warn">● At risk:</span> {{ status().remaining | money: currency() }} left of {{ status().budget | money: currency() }} }
+            @default { <span class="state-ok">✓ On track:</span> {{ status().remaining | money: currency() }} left of {{ status().budget | money: currency() }} }
+          }
+        </span>
+      } @else {
+        <a class="small" routerLink="/settings" fragment="budgets">Set a budget</a>
+      }
+    </div>
+    <div class="card tile">
+      <span class="muted small">{{ partial() ? 'vs same point last month' : 'vs last month' }}</span>
+      @if (change() !== null) {
+        <strong [class]="change()! > 0 ? 'state-over' : 'state-ok'">{{ change()! > 0 ? '▲' : '▼' }} {{ (change()! * 100).toFixed(0).replace('-', '') }}%</strong>
+        <span class="muted small">{{ previousComparable() | money: currency() }} {{ partial() ? 'by day ' + dayOfMonth : 'last month' }}</span>
+      } @else {
+        <strong>—</strong><span class="muted small">No data for last month</span>
+      }
+    </div>
+    <div class="card tile">
+      @if (progress() < 0.25) {
+        <span class="muted small">Per day so far</span>
+        <strong>{{ dailyAverage() | money: currency() }}</strong>
+        <span class="muted small">Projection starts a week in</span>
+      } @else {
+        <span class="muted small">{{ progress() < 1 ? 'Projected month end' : 'Month total' }}</span>
+        <strong>{{ status().projected | money: currency() }}</strong>
+        <span class="muted small">{{ dailyAverage() | money: currency() }} per day</span>
+      }
+    </div>
+    <div class="card tile">
+      <span class="muted small">Receipts</span>
+      <strong>{{ monthList().length }}</strong>
+      <span class="muted small">{{ categories().length }} categories</span>
+    </div>
+  </section>
+
+  @if (otherCurrency().count) {
+    <p class="muted small fx">{{ otherCurrency().count }} expense{{ otherCurrency().count > 1 ? 's' : '' }} in {{ otherCurrency().currencies }} {{ otherCurrency().count > 1 ? 'are' : 'is' }} not included in these {{ currency() }} totals. Change the home currency in Settings.</p>
+  }
+
+  <div class="grid two">
+    <section class="card" aria-labelledby="cat-title">
+      <h2 id="cat-title">Spending by category</h2>
+      <div class="donut-wrap">
+        <app-donut-chart [data]="slices()" [format]="money" [label]="'Spending by category, ' + monthName()"
+                         [centerLabel]="'Total'" [centerValue]="compact(spent())" />
+        <table class="legend">
+          <caption class="sr-only">Spending by category, {{ monthName() }}</caption>
+          <thead class="sr-only"><tr><th scope="col">Category</th><th scope="col">Amount</th><th scope="col">Share</th></tr></thead>
+          <tbody>
+            @for (c of categories(); track c.category) {
+              <tr>
+                <th scope="row"><span class="swatch" [style.background]="'var(--c-' + c.category + ')'"></span>{{ labels[c.category] }}</th>
+                <td class="num">{{ c.total | money: currency() }}</td>
+                <td class="num muted">{{ (c.share * 100).toFixed(0) }}%</td>
+              </tr>
+            } @empty {
+              <tr><td class="muted">No spending this month.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="daily-title">
+      <h2 id="daily-title">Daily spending</h2>
+      <app-bar-chart [data]="daily()" [format]="money" [compact]="compact" [title]="dayTitle"
+                     [highlight]="month() === currentMonth ? today : null" color="color-mix(in srgb, var(--accent) 45%, var(--surface))"
+                     [label]="'Daily spending in ' + monthName()" />
+      @if (month() === currentMonth) { <p class="muted small key"><span class="swatch accent"></span> Today</p> }
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="budget-title" id="budgets">
+    <div class="row">
+      <h2 id="budget-title">Budgets</h2>
+      <span class="spacer"></span>
+      <a class="btn sm" routerLink="/settings" fragment="budgets">Edit budgets</a>
+    </div>
+    @if (budgets().length) {
+      <ul class="budgets">
+        @for (b of budgets(); track b.category) {
+          <li>
+            <span class="name"><span class="swatch" [style.background]="'var(--c-' + b.category + ')'"></span>{{ labels[b.category] }}</span>
+            @if (b.budget) {
+              <div [class]="'meter ' + b.state" role="meter" [attr.aria-label]="labels[b.category] + ' budget used'"
+                   [attr.aria-valuenow]="b.spent" aria-valuemin="0" [attr.aria-valuemax]="b.budget"
+                   [attr.aria-valuetext]="(b.ratio * 100).toFixed(0) + '% used'">
+                <span [style.width.%]="b.ratio > 1 ? 100 : b.ratio * 100"></span>
+              </div>
+              <span class="figs small num">{{ b.spent | money: currency() }} / {{ b.budget | money: currency() }}</span>
+              <span class="badge small" [class]="'badge small state-' + b.state">
+                @switch (b.state) { @case ('over') { ▲ Over } @case ('warn') { ● At risk } @default { ✓ OK } }
+              </span>
+            } @else {
+              <span class="meter none"></span>
+              <span class="figs small num">{{ b.spent | money: currency() }}</span>
+              <span class="badge small muted">No budget</span>
+            }
+          </li>
+        }
+      </ul>
+      <p class="muted small">"At risk" means 85% is used, or the current pace would overshoot by month end.</p>
+    } @else {
+      <p class="muted">No budgets or spending for this month.</p>
+    }
+  </section>
+
+  <div class="grid two">
+    <section class="card" aria-labelledby="trend-title">
+      <h2 id="trend-title">Monthly trend</h2>
+      @if (budget()) { <p class="muted small key"><span class="dash" aria-hidden="true"></span> Monthly budget, {{ budget() | money: currency() }}</p> }
+      <app-line-chart [data]="monthly()" [format]="money" [compact]="compact" [title]="monthTitle"
+                      [reference]="budget() || null" [label]="'Monthly spending, up to ' + monthName()" />
+    </section>
+
+    <section class="card" aria-labelledby="merchants-title">
+      <h2 id="merchants-title">Top merchants</h2>
+      @if (merchants().length) {
+        <ol class="merchants">
+          @for (m of merchants(); track m.merchant) {
+            <li>
+              <div class="mrow"><span class="mname">{{ m.merchant }}</span><strong class="num">{{ m.total | money: currency() }}</strong></div>
+              <div class="hbar" aria-hidden="true"><span [style.width.%]="(m.total / merchantMax()) * 100"></span></div>
+              <span class="muted small">{{ m.count }} {{ m.count === 1 ? 'visit' : 'visits' }}</span>
+            </li>
+          }
+        </ol>
+      } @else {
+        <p class="muted">No spending this month.</p>
+      }
+    </section>
+  </div>
+
+  <section class="card insights" aria-labelledby="ins-title">
+    <div class="row">
+      <h2 id="ins-title">Insights</h2>
+      <span class="spacer"></span>
+      <button class="btn" type="button" (click)="askInsights()" [disabled]="insightsState() === 'loading' || !spent()">
+        @if (insightsState() === 'loading') { <span class="spinner" aria-hidden="true"></span> }
+        {{ insights() ? 'Refresh' : 'Get insights' }}
+      </button>
+    </div>
+    @if (insights()) {
+      <ul class="ins" aria-live="polite">
+        @for (b of bullets(insights()); track $index) { <li>{{ b }}</li> }
+      </ul>
+    } @else if (insightsState() !== 'loading') {
+      <p class="muted small">A short read of {{ monthName() }}: what stands out, budgets at risk and one saving idea. Only totals are sent, never images.</p>
+    }
+    @if (insightsState() === 'error') { <p class="alert" role="alert">{{ insightsError() }}</p> }
+  </section>
+}

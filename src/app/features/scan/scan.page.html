@@ -1,0 +1,61 @@
+<div class="page-head">
+  <h1>Scan a receipt</h1>
+</div>
+
+<section class="drop card" [class.dragging]="dragging()" (dragover)="onDragOver($event)"
+         (dragleave)="dragging.set(false)" (drop)="onDrop($event)" aria-labelledby="drop-title">
+  @if (busy()) {
+    <div class="busy" role="status" aria-live="polite">
+      <span class="spinner big" aria-hidden="true"></span>
+      @if (scan.status() === 'preparing') {
+        <strong>Compressing image…</strong>
+      } @else {
+        <strong>Reading the receipt with {{ providerName() }}…</strong>
+        @if (scan.prepared(); as p) {
+          <span class="muted small">Sent {{ p.width }}×{{ p.height }} px, {{ (p.bytes / 1024).toFixed(0) }} kB</span>
+        }
+      }
+      <button class="btn" type="button" (click)="scan.cancel()">Cancel</button>
+    </div>
+  } @else {
+    <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M14 6h20v36l-3.3-2.5-3.4 2.5-3.3-2.5-3.3 2.5-3.4-2.5L14 42z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M19 15h10M19 21h10M19 27h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <h2 id="drop-title">Drop a receipt photo here</h2>
+    <p class="muted">JPEG, PNG or WebP. It is downscaled and compressed in your browser before it is sent.</p>
+    <div class="row center">
+      <label class="btn primary file">
+        Choose image
+        <input type="file" accept="image/*" (change)="onFile(fileInput)" #fileInput />
+      </label>
+      <label class="btn file">
+        Take photo
+        <input type="file" accept="image/*" capture="environment" (change)="onFile(cameraInput)" #cameraInput />
+      </label>
+      <button class="btn" type="button" (click)="manual()">Enter manually</button>
+    </div>
+  }
+</section>
+
+@if (scan.status() === 'error') {
+  <p class="alert" role="alert">{{ scan.error() }}
+    @if (settings.needsKey()) { <a routerLink="/settings">Open Settings</a> }
+  </p>
+}
+
+@if (settings.isDemo()) {
+  <p class="muted small note">
+    You are in <strong>Demo mode</strong>: the sample receipts below come with pre-extracted data and run through the same validator as real scans.
+    To read your own photos, add a free <a routerLink="/settings">Gemini or Groq key</a>.
+  </p>
+}
+
+<section aria-labelledby="samples-title">
+  <h2 id="samples-title">Try a sample receipt</h2>
+  <div class="samples">
+    @for (s of samples; track s.id) {
+      <button type="button" class="sample" [disabled]="busy()" (click)="useSample(s)" [attr.aria-label]="'Scan sample: ' + s.label">
+        <img [src]="s.file" alt="" loading="lazy" width="150" height="200" />
+        <span>{{ s.label }}</span>
+      </button>
+    }
+  </div>
+</section>
